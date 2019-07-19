@@ -18,39 +18,66 @@
                                 <select id="instance_name" name="instance_name"
                                         class="selectpicker show-tick form-control bs-select-hidden"
                                         data-live-search="true"
-                                        title="请选择实例:"
                                         data-placeholder="请选择实例:" required>
-                                    <optgroup id="optgroup-mysql" label="MySQL"></optgroup>
-                                    <optgroup id="optgroup-mssql" label="MsSQL"></optgroup>
-                                    <optgroup id="optgroup-redis" label="Redis"></optgroup>
-                                    <optgroup id="optgroup-pgsql" label="PgSQL"></optgroup>
-                                    <optgroup id="optgroup-oracle" label="Oracle"></optgroup>
-                                    <optgroup id="optgroup-mongo" label="Mongo"></optgroup>
+                                    // TODO 实例中的筛选可以在python代码中， 使用filter实现， 这种实现可能有效率问题。
+                                    <option value="is-empty" disabled="" selected="selected">请选择实例:</option>
+                                    <optgroup id="optgroup-mysql" label="MySQL">
+                                        {% for instance in instances %}
+                                            {% if instance.db_type == 'mysql' %}
+                                                <option value="{{ instance.instance_name }}">{{ instance.instance_name }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
+                                    <optgroup id="optgroup-mssql" label="MsSQL">
+                                        {% for instance in instances %}
+                                            {% if instance.db_type == 'mssql' %}
+                                                <option value="{{ instance.instance_name }}">{{ instance.instance_name }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
+                                    <optgroup id="optgroup-redis" label="Redis">
+                                        {% for instance in instances %}
+                                            {% if instance.db_type == 'redis' %}
+                                                <option value="{{ instance.instance_name }}">{{ instance.instance_name }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
+                                    <optgroup id="optgroup-pgsql" label="PgSQL">
+                                        {% for instance in instances %}
+                                            {% if instance.db_type == 'pgsql' %}
+                                                <option value="{{ instance.instance_name }}">{{ instance.instance_name }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
+                                    <optgroup id="optgroup-oracle" label="Oracle">
+                                        {% for instance in instances %}
+                                            {% if instance.db_type == 'oracle' %}
+                                                <option value="{{ instance.instance_name }}">{{ instance.instance_name }}</option>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </optgroup>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <select id="db_name" name="db_name"
                                         class="form-control selectpicker show-tick bs-select-hidden"
-                                        data-live-search="true"
-                                        title="请选择数据库:"
-                                        data-placeholder="请选择数据库:" required>
+                                        data-live-search="true" data-placeholder="请选择数据库:" required>
+                                    <option value="is-empty" disabled="" selected="selected">请选择数据库:</option>
                                 </select>
                             </div>
                             <div id="div-schema_name" class="form-group" style="display: none">
                                 <select id="schema_name" name="schema_name"
                                         class="form-control selectpicker show-tick bs-select-hidden"
-                                        data-live-search="true"
-                                        title="请选择模式:"
-                                        data-placeholder="请选择模式:" required>
+                                        data-live-search="true" data-placeholder="请选择模式:" required>
+                                    <option value="is-empty" disabled="" selected="selected">请选择模式:</option>
                                 </select>
                             </div>
                             <div id="div-table_name" class="form-group">
                                 <select id="table_name" name="table_name"
                                         class="form-control selectpicker show-tick bs-select-hidden"
                                         data-live-search="true"
-                                        data-name="查看表结构"
-                                        title="查看表结构:"
-                                        data-placeholder="查看表结构:" required>
+                                        data-name="查看表结构" data-placeholder="查看表结构:" required>
+                                    <option value="is-empty" disabled="" selected="selected">查看表结构:</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -68,6 +95,8 @@
                                 <input id="btn-format" type="button" class="btn btn-info" value="美化"/>
                                 <input id="btn-explain" type="button" class="btn btn-warning" value="执行计划"/>
                                 <input id="btn-sqlquery" type="button" class="btn btn-success" value="SQL查询"/>
+                                <input id="btn-chooes" type="button" class="btn btn-info"  value="助手"/>
+                                <input id="is_show_sql" type="hidden" class="btn btn-info"  value="no_show"/>
                             </div>
                         </div>
                         <div class="text-info">
@@ -81,9 +110,7 @@
         <div class="col-md-12 column">
             <div class="panel panel-default">
                 <div class="panel-heading">
-                    查询结果 <span style="color: red">
-                        <small id="seconds_behind_master"></small>
-                    </span>
+                    查询结果
                 </div>
                 <div class="panel-body">
                     <!-- Nav tabs -->
@@ -194,6 +221,24 @@
             </div>
         </div>
     </div>
+
+
+<!-- 模态框（Modal） -->
+<div class="modal btn-chooes " id="column-chooes-myModal" data-backdrop="false" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+	<div class="modal-dialog " style="margin:1px">
+		<div class="modal-content">
+			<div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">
+                                    &times;
+                            </button>
+			</div>
+			<div class="modal-body" id="column-chooes">
+				
+			</div>
+		</div>
+	</div>
+</div>
+<!-- 模态框（Modal）end -->
 {% endblock content %}
 
 {% block js %}
@@ -425,14 +470,38 @@
             if (select_sqlContent) {
                 sqlContent = select_sqlContent
             }
-            if (!instance_name) {
+            if (instance_name === null || instance_name === $("#instance_name").attr("data-placeholder")) {
                 alert("请选择实例！");
                 return result = false;
-            } else if (!db_name) {
+            } else if (db_name === null || db_name === $("#db_name").attr("data-placeholder")) {
                 alert("请选择数据库！");
                 return result = false;
-            } else if (!sqlContent) {
+            } else if (sqlContent === null || sqlContent.trim() === "") {
                 alert("SQL内容不能为空！");
+                return result = false;
+            }
+            return result;
+        }
+        
+        //表单验证2,必须先选择数据库跟表
+        function sqlquery_validate2() {
+            var result = true;
+            var instance_name = $("#instance_name").val();
+            var db_name = $("#db_name").val();
+            var table_name = $("#table_name").val();
+            var sqlContent = editor.getValue();
+            var select_sqlContent = editor.session.getTextRange(editor.getSelectionRange());
+            if (select_sqlContent) {
+                sqlContent = select_sqlContent
+            }
+            if (instance_name === null || instance_name === $("#instance_name").attr("data-placeholder")) {
+                alert("请选择实例！");
+                return result = false;
+            } else if(db_name === null || db_name === $("#db_name").attr("data-placeholder")) {
+                alert("请选择数据库！");
+                return result = false;
+            }else if (table_name === null || table_name.trim() === "") {
+                alert("请选择表！");
                 return result = false;
             }
             return result;
@@ -447,6 +516,87 @@
                 }
             }
         );
+
+        //先查询请求
+        $("#btn-chooes").click(function () {
+                if (sqlquery_validate2()) {
+                    $("#column-chooes").empty();
+                    //获取table
+                    $.ajax({
+                        type: "post",
+                        url: "/instance/describetable/",
+                        dataType: "json",
+                        data: {
+                            instance_name: $("#instance_name").val(),
+                            db_name: $("#db_name").val(),
+                            schema_name: $("#schema_name").val(),
+                            tb_name: $("#table_name").val()
+                        },
+                        success: function (data) {
+                            console.log(data.data.rows);
+                            var res = data.data.rows;
+                            
+                            var table_name =$("#table_name").val();
+                            var sql = 'select * from \`'+table_name+'\` limit 1;';
+                            var sql_div = `<div><span style='border:1px solid black;padding:0 10px;' onclick="addListln('${sql}')">${sql}</span> </div>`
+                            $("#column-chooes").append(sql_div);
+                            
+                            var column_div = `<div><span style="border:1px solid black;padding:0 10px;" onclick="addList('SELECT ')">SELECT</span> 
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' FROM ')">FROM</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' \`${table_name}\` ')">${table_name}</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' WHERE ')">WHERE</span> 
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' GROUP BY ')">GROUP BY</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' ORDER ')">ORDER</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' HAVE ')">HAVE</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' LIMIT ')">LIMIT</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList('INSERT ')">INSERT</span> 
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList('UPDATE ')">UPDATE</span>
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList('DELETE ')">DELETE</span>
+                                              </div>`;
+                                
+                            $("#column-chooes").append(column_div);
+                            
+                            
+                            var log_div = `<div><span style='border:1px solid black;padding:0 10px;' onclick="addList(' = ')">=</span> 
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' < ')"><</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' <= ')"><=</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' > ')">></span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' >= ')">>=</span>
+                                                <span style="border:1px solid black;padding:0 10px;" onclick="addList(' OR ')">OR</span>
+                                                <span style="border:1px solid black;padding:0 10px;" onclick="addList(' AND')">AND</span>
+
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' LIKE ')">LIKE</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' REGEXP ')">REGEXP</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' BETWEEN ')">BETWEEN</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' IN ')">IN</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' CONCAT ')">CONCAT</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' CONCAT_WS ')">CONCAT_WS</span>
+                                                <span style='border:1px solid black;padding:0 10px;' onclick="addList(' DECLARE ')">DECLARE</span>
+
+        
+                                            </div>`
+                            $("#column-chooes").append(log_div);
+                            
+                            for (var i = 0; i < res.length; i++) {
+                                var column = "\`"+res[i][0]+"\`";
+                                var column_div = `<div><span style="border:1px solid black;padding:0 10px;" onclick="addList('${column}')">\`c\`</span> 
+                                                       <span style="border:1px solid black;padding:0 10px;" onclick="addList(',${column}')">,\`c\`</span> 
+                                                        <span style="border:1px solid black;padding:0 10px;" onclick="addList(' AND ${column}')">and \`c\`</span>${column}</div>`;
+                                $("#column-chooes").append(column_div);
+                                
+                            }
+                            //column-chooes
+                        },
+                    });
+                    
+                    $('#column-chooes-myModal').modal('show'); 
+
+                }
+            }
+        );
+
+
+         
 
         //先做表单验证，验证成功再成功提交执行计划查看
         $("#btn-explain").click(function () {
@@ -473,6 +623,15 @@
             }
         );
 
+        function addList(data){
+            editor.insert(data);
+        }
+        
+        function addListln(data){
+            editor.insert(data);
+            editor.insert('\n');
+        }
+         
         // 展示数据
         function display_data(data) {
             var result = data.data;
@@ -560,10 +719,6 @@
                     //执行时间和脱敏时间赋值
                     $("#" + ('time') + n).text(result['query_time'] + ' sec');
                     $("#" + ('masking_time') + n).text(result['mask_time'] + ' sec');
-                    //主从延迟赋值，仅在出现延迟时展示，null和0都不展示
-                    if (result['seconds_behind_master']) {
-                        $("#seconds_behind_master").text('Seconds_Behind_Master:  ' + result['seconds_behind_master']);
-                    }
                 }
 
             } else {
@@ -604,6 +759,10 @@
             else if (sql === 'show create table') {
                 sqlContent = "show create table " + $("#table_name").val() + ";"
             }
+            //处理SQL，去除注释、空行等
+            //sqlContent = sqlContent.replace(/^--\s+.*|^#\s+.*/g, '');
+            //sqlContent = sqlContent.replace(/[\r\n\f]{2,}/g, '\n');
+            //sqlContent = sqlContent.trim();
             //提交请求
             $.ajax({
                 type: "post",
@@ -630,32 +789,38 @@
             });
         }
     </script>
+    
+    //拖动模态框
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script>
+        $(document).ready(function(){
+
+        $("#column-chooes-myModal").draggable();//为模态对话框添加拖拽
+        $("#column-chooes-myModal").css("overflow", "hidden");//禁止模态对话框的半透明背景滚动
+
+    })
+    </script>
     <!-- common -->
     <script>
         // 实例变更获取数据库
         $("#instance_name").change(function () {
             $("#db_name").empty();
+            $("#db_name").prepend("<option value=\"is-empty\" disabled=\"\" selected=\"selected\">请选择数据库:</option>");
             $('#db_name').selectpicker('render');
             $('#db_name').selectpicker('refresh');
 
-            // 控制按钮和选择器显示
+            // 仅MySQL支持限制到表级权限
             var optgroup = $('#instance_name :selected').parent().attr('label');
             if (optgroup === "Redis") {
                 $("#div-table_name").hide();
-                $("#btn-format").attr('disabled', true);
-                $("#btn-explain").attr('disabled', true);
+                $("#btn-format").attr('disabled',true);
+                $("#btn-explain").attr('disabled',true);
                 redis_help_tab_add()
-            } else if (optgroup === "MySQL") {
-                $("#div-table_name").show();
-                $("#redis_help_tab").remove();
-                $("#btn-format").attr('disabled', false);
-                $("#btn-explain").attr('disabled', false);
-                $("#nav-tabs a:last").tab('show');
             } else {
                 $("#div-table_name").show();
                 $("#redis_help_tab").remove();
-                $("#btn-format").attr('disabled', false);
-                $("#btn-explain").attr('disabled', true);
+                $("#btn-format").attr('disabled',false);
+                $("#btn-explain").attr('disabled',false);
                 $("#nav-tabs a:last").tab('show');
             }
             // PgSQL需要选择模式再获取表
@@ -711,9 +876,11 @@
         //数据库变更获取表/模式名称
         $("#db_name").change(function () {
             $("#table_name").empty();
+            $("#table_name").prepend("<option value=\"is-empty\" disabled=\"\" selected=\"selected\">查看表结构:</option>");
             $('#table_name').selectpicker('render');
             $('#table_name').selectpicker('refresh');
             $("#schema_name").empty();
+            $("#schema_name").prepend("<option value=\"is-empty\" disabled=\"\" selected=\"selected\">请选择模式:</option>");
             $('#schema_name').selectpicker('render');
             $('#schema_name').selectpicker('refresh');
             // PgSQL需要选择模式再获取表
@@ -771,6 +938,7 @@
         //模式变更获取表
         $("#schema_name").change(function () {
             $("#table_name").empty();
+            $("#table_name").prepend("<option value=\"is-empty\" disabled=\"\" selected=\"selected\">查看表结构:</option>");
             $('#table_name').selectpicker('render');
             $('#table_name').selectpicker('refresh');
             //获取table
@@ -853,61 +1021,13 @@
             //默认获取查询历史
             get_querylog();
 
-            //获取用户实例列表
-            $(function () {
-                $.ajax({
-                    type: "get",
-                    url: "/group/user_all_instances/",
-                    dataType: "json",
-                    data: {
-                        tag_codes: ['can_read']
-                    },
-                    complete: function () {
-                        //填充实例名
-                        $("#instance_name").selectpicker('val', sessionStorage.getItem('sql_query_instance_name'));
-                        if ($("#instance_name").val()) {
-                            $("#instance_name").selectpicker().trigger("change");
-                        }
-                    },
-                    success: function (data) {
-                        if (data.status === 0) {
-                            var result = data['data'];
-                            $("#optgroup-mysql").empty();
-                            $("#optgroup-mssql").empty();
-                            $("#optgroup-redis").empty();
-                            $("#optgroup-pgsql").empty();
-                            $("#optgroup-mongo").empty();
-                            for (let i = 0; i < result.length; i++) {
-                                let instance = "<option value=\"" + result[i]['instance_name'] + "\">" + result[i]['instance_name'] + "</option>";
-                                if (result[i]['db_type'] === 'mysql') {
-                                    $("#optgroup-mysql").append(instance);
-                                } else if (result[i]['db_type'] === 'mssql') {
-                                    $("#optgroup-mssql").append(instance);
-                                } else if (result[i]['db_type'] === 'redis') {
-                                    $("#optgroup-redis").append(instance);
-                                } else if (result[i]['db_type'] === 'pgsql') {
-                                    $("#optgroup-pgsql").append(instance);
-                                } else if (result[i]['db_type'] === 'oracle') {
-                                    $("#optgroup-oracle").append(instance);
-                                } else if (result[i]['db_type'] === 'mongo') {
-                                    $("#optgroup-mongo").append(instance);
-                                } 
-                            }
-                            $('#instance_name').selectpicker('render');
-                            $('#instance_name').selectpicker('refresh');
-                            $("#db_name").empty();
-                            $('#db_name').selectpicker('render');
-                            $('#db_name').selectpicker('refresh');
-                        } else {
-                            alert(data.msg);
-                        }
-                    },
-                    error: function (XMLHttpRequest, textStatus, errorThrown) {
-                        alert(errorThrown);
-                    }
-                });
-            });
-
+            //填充实例名
+            $('#instance_name').selectpicker();
+            var myObject = {};
+            myObject.sql_query_instance_name = sessionStorage.getItem('sql_query_instance_name');
+            if (myObject.sql_query_instance_name) {
+                $("#instance_name").selectpicker('val', myObject.sql_query_instance_name).trigger("change");
+            }
 
             $("#sql_content_editor").bind("input propertychange", function () {
                 var editor = ace.edit("sql_content_editor");
